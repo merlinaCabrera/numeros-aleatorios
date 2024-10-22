@@ -22,14 +22,14 @@ function App() {
 
   return (
     <>
-      <h1>números generados 🔒📛💻</h1>
+      <h1 className="numbers-title">números generados 🔒📛💻</h1>
       <div className="card">
         {data.map((item, index) => (
-          <h4 key={index}>
+          <h4 key={index} className="numbers-item">
             ✔️ {item.number} [ seed: {item.seed} ]
           </h4>
         ))}
-        <h4>...</h4>
+        <div className="typing-dots"></div>
       </div>
     </>
   )
