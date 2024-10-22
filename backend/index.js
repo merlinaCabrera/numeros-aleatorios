@@ -9,7 +9,7 @@ app.get("/health-check", (req, res) => {
 
 app.get("/api/data", async (req, res) => {
   const [result] = await pool.query("SELECT * FROM generated_numbers")
-  res.json(result[0])
+  res.json(result)
 })
 
 app.listen(port, () => {
