@@ -1,10 +1,12 @@
 import express from "express"
+import cors from "cors"
 import { pool } from "./mysql.js"
 import { PORT } from "./config.js"
 
 const app = express()
 
 app.use(express.json())
+app.use(cors())
 
 app.get("/health-check", (req, res) => {
   res.send(`Server running on port ${PORT}!`)
