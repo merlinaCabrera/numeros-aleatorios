@@ -1,11 +1,13 @@
 import express from "express"
 import { pool } from "./mysql.js"
+import { PORT } from "./config.js"
+
 const app = express()
-const port = 3000
+
 app.use(express.json())
 
 app.get("/health-check", (req, res) => {
-  res.send(`Server running on port ${port}!`)
+  res.send(`Server running on port ${PORT}!`)
 })
 
 app.get("/api/data", async (req, res) => {
@@ -26,6 +28,6 @@ app.post("/api/data", async (req, res) => {
   })
 })
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`)
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`)
 })
