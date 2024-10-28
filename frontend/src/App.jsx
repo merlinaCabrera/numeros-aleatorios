@@ -26,7 +26,9 @@ function App() {
       <div className="card">
         {data.map((item, index) => (
           <h4 key={index} className="numbers-item">
-            ✔️ {item.number} [ seed: {item.seed} ]
+            ✔️ {item.generated_number} [ seed: {item.seed}, figure_count: {item.figure_count},
+            square_count: {item.square_count}, unique_position_value: {item.unique_position_value},
+            temperature: {item.temperature}, created_at: {item.created_at.slice(0, 19)} ]
           </h4>
         ))}
         <div className="typing-dots"></div>

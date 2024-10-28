@@ -18,15 +18,20 @@ app.get("/api/data", async (req, res) => {
 })
 
 app.post("/api/data", async (req, res) => {
-  const { number, seed } = req.body
-  const [rows] = await pool.query("INSERT INTO generated_numbers(number, seed) VALUES (?, ?)", [
-    number,
-    seed,
-  ])
+  const { figure_count, square_count, unique_position_value, temperature, seed, generated_number } =
+    req.body
+  const [rows] = await pool.query(
+    "INSERT INTO generated_numbers (figure_count, square_count, unique_position_value, temperature, seed, generated_number) VALUES (?, ?, ?, ?, ?, ?)",
+    [figure_count, square_count, unique_position_value, temperature, seed, generated_number]
+  )
   res.send({
     id: rows.insertId,
-    number,
+    figure_count,
+    square_count,
+    unique_position_value,
+    temperature,
     seed,
+    generated_number,
   })
 })
 
