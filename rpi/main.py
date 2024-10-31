@@ -1,25 +1,30 @@
 import cv2
 import numpy as np
+from collections import deque
+from delimitador import actualizar_centroides_buffer, calcular_promedio_centroides, ordenar_centroides
+from analisis import detectar_figuras  # Asegúrate de importar la función adecuada
+import time
 
 # Inicializa la cámara
 cap = cv2.VideoCapture(0)
-
-# Configura el enfoque en "macro" (puede que no funcione en todas las cámaras)
-cap.set(cv2.CAP_PROP_FOCUS, 10)  # Ajusta este valor según sea necesario
-
-# Variable para controlar si la imagen está congelada
-frozen = False
-frozen_frame = None
+buffer_size = 5  # Número de frames para el buffer temporal
+centroids_buffer = deque(maxlen=buffer_size)
+detections_buffer = deque(maxlen=buffer_size)  # Buffer para las detecciones de formas
+freeze_frame = False
+freeze_time = 3  # Segundos para congelar la imagen
 
 while True:
-    # Captura frame por frame solo si la imagen no está congelada
-    if not frozen:
-        ret, frame = cap.read()
-        if not ret:
-            break
+    # Captura frame por frame
+    ret, frame = cap.read()
+    if not ret:
+        break
 
-        # Espeja la imagen
-        frame = cv2.flip(frame, 1)  # 1 para reflejar horizontalmente
+    # Espeja la imagen
+    frame = cv2.flip(frame, 1)  # 1 para reflejar horizontalmente
+
+    if not freeze_frame:
+        height, width = frame.shape[:2]
+        center_x, center_y = width // 2, height // 2
 
         # Convierte la imagen de BGR a HSV
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -29,13 +34,14 @@ while True:
         upper_green = np.array([80, 255, 255])  # Límite superior del verde
 
         # Crea una máscara para detectar los colores verdes
-        mask = cv2.inRange(hsv, lower_green, upper_green)
+        mask_green = cv2.inRange(hsv, lower_green, upper_green)
 
         # Encuentra contornos en la imagen enmascarada
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         corners = []
         centroids = []  # Lista para almacenar los centroides
+        sectors = {1: [], 2: [], 3: [], 4: []}  # Diccionario para almacenar centroides por sector
 
         # Filtra los contornos para encontrar los cuadrados, limitando a 4
         for contour in contours:
@@ -62,49 +68,78 @@ while True:
                         cY = int(M["m01"] / M["m00"])
                         centroids.append((cX, cY))  # Guarda el centroide
 
-        # Si se han detectado 4 cuadrados, determina su posición
-        if len(corners) == 4:
-            positions = {0: "arriba izquierda", 1: "arriba derecha", 2: "abajo izquierda", 3: "abajo derecha"}
+                        # Determina el sector de la imagen
+                        if cX < center_x and cY < center_y:
+                            sectors[1].append((cX, cY))
+                        elif cX >= center_x and cY < center_y:
+                            sectors[2].append((cX, cY))
+                        elif cX < center_x and cY >= center_y:
+                            sectors[3].append((cX, cY))
+                        else:
+                            sectors[4].append((cX, cY))
 
+        # Actualiza el buffer de centroides
+        if all(len(sectors[sector]) > 0 for sector in sectors):
+            # Toma el primer centroide de cada sector
+            selected_centroids = [sectors[1][0], sectors[2][0], sectors[3][0], sectors[4][0]]
+            actualizar_centroides_buffer(selected_centroids, centroids_buffer)
+
+        # Calcula el promedio de los centroides si hay suficiente historial en el buffer
+        if len(centroids_buffer) == buffer_size:
+            promedio_centroids = calcular_promedio_centroides(centroids_buffer)
             # Ordenar los centroides
-            centroids.sort(key=lambda point: (point[1], point[0]))  # Ordenar por Y, luego por X
+            promedio_centroids = ordenar_centroides(promedio_centroids)
 
-            # Etiqueta los cuadrados
-            for idx, centroid in enumerate(centroids):
-                cv2.putText(frame, positions[idx], (centroid[0], centroid[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            # Definir el área delimitada usando los centroides promedio
+            x_min = min([c[0] for c in promedio_centroids])
+            x_max = max([c[0] for c in promedio_centroids])
+            y_min = min([c[1] for c in promedio_centroids])
+            y_max = max([c[1] for c in promedio_centroids])
 
-            # Crear una máscara negra del mismo tamaño que la imagen
-            mask = np.zeros_like(frame)
+            # Transforma a escala de grises
+            gris_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            # Ajuste de brillo y contraste
+            ajustado_frame = cv2.convertScaleAbs(gris_frame, alpha=3, beta=25)
 
-            # Convierte los centroides en un array de puntos
-            points = np.array(centroids, dtype=np.int32)
+            # Recortar la imagen en el área delimitada
+            roi = ajustado_frame[y_min:y_max, x_min:x_max]
 
-            # Dibuja un polígono (perímetro) en la máscara usando solo los puntos adyacentes
-            cv2.fillConvexPoly(mask, points, (255, 255, 255))
+            cv2.imshow("ROI - Region de Interes", roi)
 
-            # Aplica la máscara a la imagen original
-            frame = cv2.bitwise_and(frame, mask)
+            # Llama a la función para detectar formas dentro del área recortada
+            resultado, imagen_procesada = detectar_figuras(roi)
 
-            # Congelar la imagen cuando se detectan los 4 cuadrados
-            frozen_frame = frame.copy()
-            frozen = True
+            # Agrega los resultados actuales al buffer de detección
+            detections_buffer.append(resultado)
 
-    # Si la imagen está congelada, muestra el frame congelado
-    if frozen:
-        cv2.imshow('Webcam', frozen_frame)
-    else:
-        # Muestra el frame en una ventana
-        cv2.imshow('Webcam', frame)
+            # Calcular el promedio de detecciones en el buffer
+            promedio_L = sum(d["L"] for d in detections_buffer) // len(detections_buffer)
+            promedio_cuadrados = sum(d["Cuadrados"] for d in detections_buffer) // len(detections_buffer)
+            print(f"'L' detectadas: {promedio_L}")
+            print(f"Cuadrados detectados: {promedio_cuadrados}")
+
+            # Muestra la región de interés procesada en el mismo frame
+            ajustado_frame[y_min:y_max, x_min:x_max] = imagen_procesada
+
+            # Abre el ROI en una nueva ventana si se detectan cuadros
+            if promedio_cuadrados > 0:
+                cv2.imshow("ROI - Region de Interes", ajustado_frame)
+
+            # Congelar la imagen después de 3 segundos si hay detección de cuadros verdes
+            #if promedio_cuadrados > 0 and not freeze_frame:
+                #freeze_frame = True
+                #frozen_frame = frame.copy()
+                #time.sleep(freeze_time)
+
+    # Muestra el frame en una ventana
+    cv2.imshow('Webcam', frame)
 
     # Manejo de teclas
     key = cv2.waitKey(1) & 0xFF
-
-    # Rompe el bucle si se presiona la tecla 'q'
-    if key == ord('q'):
+    if key == ord(' '):  # Espacio para descongelar la imagen y continuar usando la cámara
+        freeze_frame = False
+    elif key == ord('q'):  # Rompe el bucle si se presiona la tecla 'q'
         break
-    # Reanuda la detección si se presiona la tecla 'espacio'
-    elif key == ord(' '):
-        frozen = False
 
 # Libera la captura y cierra las ventanas
 cap.release()
