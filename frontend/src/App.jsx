@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react"
 import "./App.css"
 
+const apiHost = import.meta.env.VITE_API_HOST
+
 function App() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch("http://localhost:3000/api/data")
+    fetch(`${apiHost}/api/data`)
       .then((response) => response.json())
       .then((data) => {
         setData(data)
