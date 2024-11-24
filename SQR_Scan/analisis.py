@@ -98,4 +98,4 @@ def detectar_figuras(image):
     print(f"Distancia desde (0, 0) hasta coordenadas de L: {distance_l_shapes}")
 
     # Devolver los resultados y la imagen procesada
-    return {"Cuadrados": square_count, "L": l_shape_count}, cv2.cvtColor(output_image, cv2.COLOR_BGR2GRAY)
+    return {"Cuadrados": square_count, "L": l_shape_count, "DistanciaL": distance_l_shapes, "DistanciaC": distance_squares}, cv2.cvtColor(output_image, cv2.COLOR_BGR2GRAY)
