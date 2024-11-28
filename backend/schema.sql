@@ -5,7 +5,7 @@ CREATE TABLE random_numbers.generated_numbers (
 	id INT NOT NULL AUTO_INCREMENT,
     figure_count INT,
     square_count INT,
-    unique_position_value BIGINT,
+    unique_position_value FLOAT,
     temperature DECIMAL(4, 2),
     seed VARCHAR(255),
     generated_number VARCHAR(255),
