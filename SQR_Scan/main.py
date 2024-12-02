@@ -5,6 +5,9 @@ from delimitador import actualizar_centroides_buffer, calcular_promedio_centroid
 from analisis import detectar_figuras
 import time
 
+from Sensor import leer_temperatura
+from Utils import *
+
 # Inicializa la cámara y  parámetros de configuración
 cap = cv2.VideoCapture(0)
 buffer_size = 6 # Número de frames para el buffer temporal
@@ -13,12 +16,30 @@ detections_buffer = deque(maxlen=buffer_size)  # Buffer para las detecciones de 
 analizar = False
 verMin = [0, 115, 110]  # Límite inferior del verde
 verMax = [90, 217, 189]  # Límite superior del verde
+temperaturas = deque(maxlen=10)  # ultimas 10 lecturas del sensor
+
 # Crea dos deslizadores para ajustar alpha y beta
 cv2.namedWindow('Webcam')
 cv2.createTrackbar('Alpha', 'Webcam', 10, 30, lambda x: None)  # Alpha [1, 30]
 cv2.createTrackbar('Beta', 'Webcam', 0, 100, lambda x: None)   # Beta [-100, 100]
 
+inicio = time.time()
+
 while True:
+
+    ## TEMPERATURA ###
+    tiempo_transcurrido = time.time() - inicio
+    if tiempo_transcurrido > 2:
+        temperatura = leer_temperatura()
+        if temperatura is not None:
+	        temperaturas.append(temperatura)  # nueva lectura
+            
+        inicio = time.time()
+
+
+    temp_Promedio = round(sum(temperaturas) / len(temperaturas), 2)  # Calcula el promedio móvil
+    ### TEMPETATURA ###   
+         
     # Captura frame por frame
     ret, frame = cap.read()
     if not ret:
@@ -131,21 +152,11 @@ while True:
                 cant_L = sum(d["L"] for d in detections_buffer) // len(detections_buffer)
                 cant_cuadrados = sum(d["Cuadrados"] for d in detections_buffer) // len(detections_buffer)
 
-                # Mostrar Resultados
-                print(f"'L' detectadas: {cant_L}")
-                print(f"Cuadrados detectados: {cant_cuadrados}")
-                print(f"Distancia L shapes: {distancia_l}")
-                print(f"Distancia Cuadrados: {distancia_c}")
-                print("-----------------------------------------------------------------------------------")
-                print("ENVIAR A SERVIDOR")
-                print("-----------------------------------------------------------------------------------")
-                print(f"{distancia_l}")
-                print(f"{distancia_c}")
-                print(f"{cant_L}")
-                print(f"{cant_L + cant_cuadrados}")
-                print("-----------------------------------------------------------------------------------")
+                # Generación de Clave
+                semilla, clave = generar_clave(transformar_decimal(temp_Promedio),cant_L+cant_cuadrados, cant_cuadrados, transformar_decimal(distancia_l))
 
-
+                # Envío de Datos
+                enviarDatos(cant_L+cant_cuadrados, cant_cuadrados, distancia_l, temp_Promedio, semilla, clave)
 
                 # Muestra la región de interés procesada en el mismo frame
                 ajustado_frame[y_min:y_max, x_min:x_max] = imagen_procesada

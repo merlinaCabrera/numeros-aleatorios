@@ -1,23 +1,23 @@
 import cv2
 import numpy as np
 
-def funcion_B(square_coords, l_shape_coords):
+def funcion_B(coord_cuadrado, cord_L):
     # Sumar coordenadas de cuadrados y L
-    posCuadroGeneral = np.sum(square_coords, axis=0) if len(square_coords) > 0 else (0, 0)
-    posLGeneral = np.sum(l_shape_coords, axis=0) if len(l_shape_coords) > 0 else (0, 0)
+    posCuadroGeneral = np.sum(coord_cuadrado, axis=0) if len(coord_cuadrado) > 0 else (0, 0)
+    posLGeneral = np.sum(cord_L, axis=0) if len(cord_L) > 0 else (0, 0)
 
     # Calcular distancias desde (0, 0)
-    distance_squares = np.sqrt(posCuadroGeneral[0]**2 + posCuadroGeneral[1]**2)
-    distance_l_shapes = np.sqrt(posLGeneral[0]**2 + posLGeneral[1]**2)
+    dist_cuadrados = np.sqrt(posCuadroGeneral[0]**2 + posCuadroGeneral[1]**2)
+    dist_L = np.sqrt(posLGeneral[0]**2 + posLGeneral[1]**2)
 
-    return posCuadroGeneral, distance_squares, posLGeneral, distance_l_shapes
+    return posCuadroGeneral, dist_cuadrados, posLGeneral, dist_L
 
 def detectar_figuras(image):
     # Convertir la imagen a binaria aplicando un umbral
     _, binary_image = cv2.threshold(image, 75, 255, cv2.THRESH_BINARY_INV)
 
     # Hacer una copia de la imagen para dibujar los contornos
-    output_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)  # Convierte a BGR para dibujar en color
+    img_salida = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)  # Convierte a BGR para dibujar en color
 
     # Obtener dimensiones de la imagen
     height, width = image.shape[:2]
@@ -26,12 +26,12 @@ def detectar_figuras(image):
     contours, _ = cv2.findContours(binary_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # Contadores de formas
-    square_count = 0
-    l_shape_count = 0
+    cant_cuad = 0
+    cant_L = 0
 
     # Listas para almacenar las coordenadas
-    square_coords = []
-    l_shape_coords = []
+    coord_Cuadrado = []
+    coord_L = []
 
     # Rango de área para ignorar el borde de la imagen y el ruido
     min_area = 50     # Área mínima para considerar un contorno
@@ -66,36 +66,33 @@ def detectar_figuras(image):
 
         # Clasificar en base a la cantidad de vértices y dibujar
         if len(approx) == 4:
-            square_count += 1
-            square_coords.append((norm_x, norm_y))  # Guardar coordenadas de cuadrados
+            cant_cuad += 1
+            coord_Cuadrado.append((norm_x, norm_y))  # Guardar coordenadas de cuadrados
             # Dibujar contorno en verde
-            cv2.drawContours(output_image, [approx], -1, (0, 255, 0), 2)
+            cv2.drawContours(img_salida, [approx], -1, (0, 255, 0), 2)
             # Crear texto con etiqueta y coordenadas
             texto = f"C ({norm_x}, {norm_y})"
             # Colocar el texto en la imagen
-            cv2.putText(output_image, texto, (cX - 30, cY - 10),
+            cv2.putText(img_salida, texto, (cX - 30, cY - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-            # Imprimir en consola
-            print(f"Cuadrado detectado en: ({norm_x}, {norm_y})")
+
+            # print(f"Cuadrado detectado en: ({norm_x}, {norm_y})")
+
         elif len(approx) == 6:
-            l_shape_count += 1
-            l_shape_coords.append((norm_x, norm_y))  # Guardar coordenadas de L
+            cant_L += 1
+            coord_L.append((norm_x, norm_y))  # Guardar coordenadas de L
             # Dibujar contorno en azul
-            cv2.drawContours(output_image, [approx], -1, (255, 0, 0), 2)
+            cv2.drawContours(img_salida, [approx], -1, (255, 0, 0), 2)
             # Crear texto con etiqueta y coordenadas
             texto = f"L ({norm_x}, {norm_y})"
             # Colocar el texto en la imagen
-            cv2.putText(output_image, texto, (cX - 10, cY - 10),
+            cv2.putText(img_salida, texto, (cX - 10, cY - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
-            # Imprimir en consola
-            print(f"Figura 'L' detectada en: ({norm_x}, {norm_y})")
+
+            # print(f"Figura 'L' detectada en: ({norm_x}, {norm_y})")
 
     # Llamar a funcion_B con las coordenadas de cuadrados y L
-    posCuadroGeneral, distance_squares, posLGeneral, distance_l_shapes = funcion_B(square_coords, l_shape_coords)
-
-    # Imprimir resultados de las distancias
-    print(f"Distancia desde (0, 0) hasta coordenadas de cuadrados: {distance_squares}")
-    print(f"Distancia desde (0, 0) hasta coordenadas de L: {distance_l_shapes}")
+    posCuadroGeneral, dist_cuadrados, posLGeneral, dist_L = funcion_B(coord_Cuadrado, coord_L)
 
     # Devolver los resultados y la imagen procesada
-    return {"Cuadrados": square_count, "L": l_shape_count, "DistanciaL": distance_l_shapes, "DistanciaC": distance_squares}, cv2.cvtColor(output_image, cv2.COLOR_BGR2GRAY)
+    return {"Cuadrados": cant_cuad, "L": cant_L, "DistanciaL": dist_L, "DistanciaC": dist_cuadrados}, cv2.cvtColor(img_salida, cv2.COLOR_BGR2GRAY)
