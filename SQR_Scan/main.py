@@ -15,16 +15,13 @@ minArea = 500
 
 # Variables de Control
 enviar = False
-capturando = True
+capturando = False
 conMonitor = False
 
-lock = threading.Lock()
-
-# Temperatura
-temperaturas = deque(maxlen=10)  # ultimas 10 lecturas del sensor
+comenzarCamara = threading.Condition()
 
 def captura_camara():
-    global enviar
+    global enviar, conMonitor
     evaluado = False
     inicio = time.time()
 
@@ -43,6 +40,9 @@ def captura_camara():
     if not cap.isOpened():
         print("Error al acceder a la cámara")
         return
+
+    with comenzarCamara:
+        comenzarCamara.wait_for(lambda: capturando)
 
     while capturando:
         tiempoActual = time.time()
@@ -109,32 +109,28 @@ def captura_camara():
             # Llama a la función para detectar formas dentro del área recortada
             resultado, imagen_procesada = detectar_figuras(recorte)
 
+            # Información a enviar
             distancia_l = resultado["DistanciaL"]
-            distancia_c = resultado["DistanciaC"]
             cant_l = resultado["L"]
             cant_c = resultado["Cuadrados"]
-            print(distancia_c, distancia_l, cant_l, cant_c)
+            #temperatura = leer_temperatura()
 
-            cv2.imshow("Region de Interes", imagen_procesada)
+            print(distancia_l, cant_l, cant_c)
+
+            if conMonitor:
+                cv2.imshow("Region de Interes", imagen_procesada)
             evaluado = False
 
-            # Generación de Clave
-            #semilla, clave = generar_clave(transformar_decimal(23.5), cant_L + cant_cuadrados, cant_cuadrados,transformar_decimal(distancia_l))
-
-            # Envío de Datos
-            with lock:
-                if enviar:
-                    print("habilitado")
-                else:
-                    print("deshabilitado")
-            #    enviarDatos(cant_L + cant_cuadrados, cant_cuadrados, distancia_l, 23.5, semilla, clave)
-
-            # Abre el ROI en una nueva ventana si se detectan cuadros
-            #if cant_cuadrados > 0:
-             #   cv2.imshow("Region de Interes", imagen_procesada)
+            ### CLAVE ###
+            #semilla, clave = generar_clave(transformar_decimal(temperatura), cant_l + cant_c, cant_c,transformar_decimal(distancia_l))
+            # Envío al Servidor
+            #if enviar:
+            #    enviarDatos(cant_l + cant_c, cant_c, distancia_l, temperatura, semilla, clave)
+            ### CLAVE ###
 
         # Muestra el frame en la ventana
-        cv2.imshow('Webcam', frame)
+        if conMonitor:
+            cv2.imshow('Webcam', frame)
 
         # Esperar por 1 milisegundo para que la ventana se actualice
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -145,17 +141,38 @@ def captura_camara():
     cv2.destroyAllWindows()
 
 def consola_y_entrada():
-    global capturando, enviar
-    mostrar_cartel2()
+    global capturando, enviar, conMonitor
+    mostrar_cartel_bienvedida()
+    mostrar_cartel1()
+    tecla = input("Ingrese su eleccion: ")
+    while tecla != '1' and tecla != '2':
+        tecla = input ("Ingrese una opcion valida: ")
+        mostrar_cartel1()
+
+    if tecla == '1':
+        conMonitor = True
+    else:
+        conMonitor = False
+
+    with comenzarCamara:
+        capturando = True
+        comenzarCamara.notify_all()  # Notificar a todos los hilos en espera
+
+    mostrar_cartel2(enviar)
     while True:
         tecla = input("Ingrese su eleccion: ")
         if tecla == 'e':
-            with lock:
-                enviar = not enviar
+            enviar = not enviar
+            if enviar:
+                print("envio al servidor habilitado")
+            else:
+                print("envio al servidor deshabilitado")
         elif tecla == 'q':
             capturando = False
             break
+        mostrar_cartel2(enviar)
 
+### MANEJO DE HILOS ###
 # Crear hilos
 hilo_camara = threading.Thread(target=captura_camara)
 hilo_consola = threading.Thread(target=consola_y_entrada)
@@ -164,8 +181,7 @@ hilo_consola = threading.Thread(target=consola_y_entrada)
 hilo_camara.start()
 hilo_consola.start()
 
-
 hilo_camara.join()
-time.sleep(1)
+time.sleep(0.5)
 hilo_consola.join()
 print("programa cerrado")

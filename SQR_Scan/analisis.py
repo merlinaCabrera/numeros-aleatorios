@@ -1,16 +1,14 @@
 import cv2
 import numpy as np
 
-def funcion_B(coord_cuadrado, cord_L):
-    # Sumar coordenadas de cuadrados y L
-    posCuadroGeneral = np.sum(coord_cuadrado, axis=0) if len(coord_cuadrado) > 0 else (0, 0)
+def funcion_B(cord_L):
+    # Sumar coordenadas de cuadrados
     posLGeneral = np.sum(cord_L, axis=0) if len(cord_L) > 0 else (0, 0)
 
-    # Calcular distancias desde (0, 0)
-    dist_cuadrados = np.sqrt(posCuadroGeneral[0]**2 + posCuadroGeneral[1]**2)
+    # Calcular distancias desde (0, 0) (esquina superior izquierda)
     dist_L = np.sqrt(posLGeneral[0]**2 + posLGeneral[1]**2)
 
-    return posCuadroGeneral, dist_cuadrados, posLGeneral, dist_L
+    return posLGeneral, dist_L
 
 def detectar_figuras(image):
     # Convertir la imagen a binaria aplicando un umbral
@@ -95,10 +93,10 @@ def detectar_figuras(image):
             # print(f"Figura 'L' detectada en: ({norm_x}, {norm_y})")
 
     # Llamar a funcion_B con las coordenadas de cuadrados y L
-    posCuadroGeneral, dist_cuadrados, posLGeneral, dist_L = funcion_B(coord_Cuadrado, coord_L)
+    posLGeneral, dist_L = funcion_B(coord_L)
 
     res = cv2.cvtColor(img_salida, cv2.COLOR_BGR2GRAY)
     #cv2.imshow("resultado",res)
 
     # Devolver los resultados y la imagen procesada
-    return {"Cuadrados": cant_cuad, "L": cant_L, "DistanciaL": dist_L, "DistanciaC": dist_cuadrados}, res
+    return {"Cuadrados": cant_cuad, "L": cant_L, "DistanciaL": dist_L}, res
