@@ -6,7 +6,7 @@ from analisis import detectar_figuras
 import time
 from UI_UX import *
 
-#from Sensor import leer_temperatura
+from Sensor import leer_temperatura
 from Utils import *
 
 # parámetros de configuración
@@ -104,7 +104,7 @@ def captura_camara():
             cuadrados_previos = cuadrados_detectados
 
         if evaluado:
-            recorte = cv2.convertScaleAbs(recorte, alpha=2.15, beta=20) # Ajustes de contraste y brillo para mejor contraste
+            recorte = cv2.convertScaleAbs(recorte, alpha=1.7, beta=-50) # Ajustes de contraste y brillo para mejor contraste
 
             # Llama a la función para detectar formas dentro del área recortada
             resultado, imagen_procesada = detectar_figuras(recorte)
@@ -113,21 +113,21 @@ def captura_camara():
             distancia_l = resultado["DistanciaL"]
             cant_l = resultado["L"]
             cant_c = resultado["Cuadrados"]
-            #temperatura = leer_temperatura()
+            temperatura = leer_temperatura()
 
-            print(distancia_l, cant_l, cant_c)
+            print(distancia_l, cant_l, cant_c, temperatura)
 
             if conMonitor:
                 cv2.imshow("Region de Interes", imagen_procesada)
             evaluado = False
 
             ### CLAVE ###
-            #semilla, clave = generar_clave(transformar_decimal(temperatura), cant_l + cant_c, cant_c,transformar_decimal(distancia_l))
+            semilla, clave = generar_clave(transformar_decimal(temperatura), cant_l + cant_c, cant_c,transformar_decimal(distancia_l))
             # Envío al Servidor
-            #if enviar:
-            #    enviarDatos(cant_l + cant_c, cant_c, distancia_l, temperatura, semilla, clave)
+            if enviar:
+                enviarDatos(cant_l + cant_c, cant_c, distancia_l, temperatura, semilla, clave)
             ### CLAVE ###
-
+            
         # Muestra el frame en la ventana
         if conMonitor:
             cv2.imshow('Webcam', frame)
