@@ -1,179 +1,171 @@
+import threading
 import cv2
 import numpy as np
 from collections import deque
-from delimitador import actualizar_centroides_buffer, calcular_promedio_centroides, ordenar_centroides
 from analisis import detectar_figuras
 import time
+from UI_UX import *
 
-from Sensor import leer_temperatura
+#from Sensor import leer_temperatura
 from Utils import *
 
-# Inicializa la cámara y  parámetros de configuración
-cap = cv2.VideoCapture(0)
-buffer_size = 6 # Número de frames para el buffer temporal
-centroids_buffer = deque(maxlen=buffer_size)
-detections_buffer = deque(maxlen=buffer_size)  # Buffer para las detecciones de formas
-analizar = False
-verMin = [0, 115, 110]  # Límite inferior del verde
-verMax = [90, 217, 189]  # Límite superior del verde
+# parámetros de configuración
+kernel = np.ones((5, 5), np.uint8)  # Nucleo
+minArea = 500
+
+# Variables de Control
+enviar = False
+capturando = True
+conMonitor = False
+
+lock = threading.Lock()
+
+# Temperatura
 temperaturas = deque(maxlen=10)  # ultimas 10 lecturas del sensor
 
-# Crea dos deslizadores para ajustar alpha y beta
-cv2.namedWindow('Webcam')
-cv2.createTrackbar('Alpha', 'Webcam', 10, 30, lambda x: None)  # Alpha [1, 30]
-cv2.createTrackbar('Beta', 'Webcam', 0, 100, lambda x: None)   # Beta [-100, 100]
-
-inicio = time.time()
-
-while True:
-
-    ## TEMPERATURA ###
-    tiempo_transcurrido = time.time() - inicio
-    if tiempo_transcurrido > 2:
-        temperatura = leer_temperatura()
-        if temperatura is not None:
-	        temperaturas.append(temperatura)  # nueva lectura
-            
-        inicio = time.time()
-
-
-    temp_Promedio = round(sum(temperaturas) / len(temperaturas), 2)  # Calcula el promedio móvil
-    ### TEMPETATURA ###   
-         
-    # Captura frame por frame
-    ret, frame = cap.read()
-    if not ret:
-        break
-
-    # Espeja la imagen
-    frame = cv2.flip(frame, 1)  # 1 para reflejar horizontalmente
-
-    # Muestra el frame en la ventana
-    cv2.imshow('Webcam', frame)
-
-    height, width = frame.shape[:2]
-    center_x, center_y = width // 2, height // 2
-
-    # Convierte la imagen de BGR a HSV
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+def captura_camara():
+    global enviar
+    evaluado = False
+    inicio = time.time()
 
     # Define los límites del color verde en el espacio HSV
+    verMin = [30, 100, 91]  # Límite inferior del verde
+    verMax = [105, 255, 255]  # Límite superior del verde
     lower_green = np.array(verMin)  # Límite inferior del verde
     upper_green = np.array(verMax)  # Límite superior del verde
 
-    # Crea una máscara para detectar los colores verdes
-    mask_green = cv2.inRange(hsv, lower_green, upper_green)
+    # Variables para detectar el estado de las 4 áreas
+    cuadrados_detectados = 0
+    cuadrados_previos = 0  # Para evitar repetir la llamada a operar()
+    coordenadas_cuadrados = deque(maxlen=4)
 
-    # Encuentra contornos en la imagen enmascarada
-    contours, _ = cv2.findContours(mask_green, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("Error al acceder a la cámara")
+        return
 
-    corners = []
-    centroids = []  # Lista para almacenar los centroides
-    sectors = {1: [], 2: [], 3: [], 4: []}  # Diccionario para almacenar centroides por sector
+    while capturando:
+        tiempoActual = time.time()
 
-    # Filtra los contornos para encontrar los cuadrados, limitando a 4
-    for contour in contours:
-        if len(corners) >= 4:  # Verifica si ya se han encontrado 4 cuadrados
+        ret, frame = cap.read()
+        if not ret:
+            print("Error al leer el frame")
             break
 
-        # Aproxima el contorno a un polígono
-        approx = cv2.approxPolyDP(contour, 0.02 * cv2.arcLength(contour, True), True)
+        # Espeja la imagen
+        frame = cv2.flip(frame, 1)  # 1 para reflejar horizontalmente
 
-        # Verifica si es un cuadrado
-        if len(approx) == 4:
-            # Verifica que los lados sean aproximadamente iguales
-            side_lengths = [np.linalg.norm(approx[i] - approx[(i + 1) % 4]) for i in range(4)]
-            if all(abs(side_lengths[i] - side_lengths[i - 1]) < 10 for i in range(4)):
-                corners.append(approx)
+        # Convierte la imagen de BGR a HSV
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-                # Dibuja un rectángulo alrededor del cuadrado detectado
-                cv2.rectangle(frame, tuple(approx[0][0]), tuple(approx[2][0]), (0, 0, 255), 2)
+        # Crea una máscara para detectar los colores verdes
+        mask_green = cv2.inRange(hsv, lower_green, upper_green)
+        closing = cv2.morphologyEx(mask_green, cv2.MORPH_CLOSE, kernel)
+        closing = cv2.medianBlur(closing, 13)
 
-                # Calcula el centroide del cuadrado
-                M = cv2.moments(approx)
-                if M["m00"] != 0:
-                    cX = int(M["m10"] / M["m00"])
-                    cY = int(M["m01"] / M["m00"])
-                    centroids.append((cX, cY))  # Guarda el centroide
+        # Encuentra contornos en la imagen enmascarada
+        contours, _ = cv2.findContours(closing.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-                    # Determina el sector de la imagen
-                    if cX < center_x and cY < center_y:
-                        sectors[1].append((cX, cY))
-                    elif cX >= center_x and cY < center_y:
-                        sectors[2].append((cX, cY))
-                    elif cX < center_x and cY >= center_y:
-                        sectors[3].append((cX, cY))
-                    else:
-                        sectors[4].append((cX, cY))
+        # Contamos cuántos contornos son lo suficientemente grandes y aproximan a un cuadrado
+        cuadrados_detectados = 0
+        for cnt in contours:
+            M = cv2.moments(cnt)
+            area = M['m00']
+            if area > minArea:
+                (x, y, u, v) = cv2.boundingRect(cnt)
+                aspect_ratio = float(u) / v
+                # Se considera cuadrado si el aspecto es cercano a 1 (ajustar según sea necesario)
+                if 0.5 < aspect_ratio < 1.5:
+                    cuadrados_detectados += 1
+                    coordenadas_cuadrados.append((x, y))  # Ultimas 4 coordenadas de cada cuadrado
+                    # Dibuja rectangulos sobre los cuadros verdes
+                    # cv2.rectangle(frame, (x, y), (x + u, y + v), (255, 0, 0), 3)
 
-        # Actualiza el buffer de centroides
-        if all(len(sectors[sector]) > 0 for sector in sectors):
-            # Toma el primer centroide de cada sector
-            selected_centroids = [sectors[1][0], sectors[2][0], sectors[3][0], sectors[4][0]]
-            actualizar_centroides_buffer(selected_centroids, centroids_buffer)
+        # Si se detectan exactamente 4 cuadrados y antes no se detectaron, llamar a operar()
+        if cuadrados_detectados == 4 and cuadrados_previos != 4:
+            if tiempoActual - inicio >= 2:
+                # Encuentra las coordenadas extremas (mínimas y máximas)
+                min_x = min(coordenadas_cuadrados, key=lambda x: x[0])[0]
+                min_y = min(coordenadas_cuadrados, key=lambda x: x[1])[1]
+                max_x = max(coordenadas_cuadrados, key=lambda x: x[0])[0]
+                max_y = max(coordenadas_cuadrados, key=lambda x: x[1])[1]
 
-        # Calcula el promedio de los centroides si hay suficiente historial en el buffer
-        if len(centroids_buffer) == buffer_size:
-            promedio_centroids = calcular_promedio_centroides(centroids_buffer)
-            # Ordenar los centroides
-            promedio_centroids = ordenar_centroides(promedio_centroids)
+                # Recorte del área alrededor de los cuadrados
+                recorte = frame[min_y:max_y, min_x:max_x]
+                evaluado = True
 
-            # Definir el área delimitada usando los centroides promedio
-            x_min = min([c[0] for c in promedio_centroids])
-            x_max = max([c[0] for c in promedio_centroids])
-            y_min = min([c[1] for c in promedio_centroids])
-            y_max = max([c[1] for c in promedio_centroids])
+                print("Encontrado")
+                inicio = tiempoActual
 
-            # Transforma a escala de grises
-            gris_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            # Ajuste de brillo y contraste
-            # Lee los valores de los deslizadores
-            alpha = cv2.getTrackbarPos('Alpha', 'Webcam') / 10  # Normaliza a un rango adecuado
-            beta = cv2.getTrackbarPos('Beta', 'Webcam') - 50  # Centra el rango de beta en torno a 0
+        # Si las 4 áreas desaparecen y luego se vuelven a detectar, llamar nuevamente a operar()
+        if cuadrados_detectados != 4:
+            cuadrados_previos = 0
+        else:
+            cuadrados_previos = cuadrados_detectados
 
-            # Aplica el ajuste de brillo y contraste con los valores de los deslizadores
-            ajustado_frame = cv2.convertScaleAbs(gris_frame, alpha=alpha, beta=beta)
+        if evaluado:
+            recorte = cv2.convertScaleAbs(recorte, alpha=2.15, beta=20) # Ajustes de contraste y brillo para mejor contraste
 
-            # Recortar la imagen en el área delimitada
-            roi = ajustado_frame[y_min:y_max, x_min:x_max]
+            # Llama a la función para detectar formas dentro del área recortada
+            resultado, imagen_procesada = detectar_figuras(recorte)
 
-            if analizar:
-                cv2.imshow("ROI - Region de Interes", roi)
+            distancia_l = resultado["DistanciaL"]
+            distancia_c = resultado["DistanciaC"]
+            cant_l = resultado["L"]
+            cant_c = resultado["Cuadrados"]
+            print(distancia_c, distancia_l, cant_l, cant_c)
 
-                # Llama a la función para detectar formas dentro del área recortada
-                resultado, imagen_procesada = detectar_figuras(roi)
+            cv2.imshow("Region de Interes", imagen_procesada)
+            evaluado = False
 
-                # Agrega los resultados actuales al buffer de detección
-                detections_buffer.append(resultado)
-                distancia_l = resultado["DistanciaL"]
-                distancia_c = resultado["DistanciaC"]
+            # Generación de Clave
+            #semilla, clave = generar_clave(transformar_decimal(23.5), cant_L + cant_cuadrados, cant_cuadrados,transformar_decimal(distancia_l))
 
-                # Calcular el promedio de detecciones en el buffer
-                cant_L = sum(d["L"] for d in detections_buffer) // len(detections_buffer)
-                cant_cuadrados = sum(d["Cuadrados"] for d in detections_buffer) // len(detections_buffer)
+            # Envío de Datos
+            with lock:
+                if enviar:
+                    print("habilitado")
+                else:
+                    print("deshabilitado")
+            #    enviarDatos(cant_L + cant_cuadrados, cant_cuadrados, distancia_l, 23.5, semilla, clave)
 
-                # Generación de Clave
-                semilla, clave = generar_clave(transformar_decimal(temp_Promedio),cant_L+cant_cuadrados, cant_cuadrados, transformar_decimal(distancia_l))
+            # Abre el ROI en una nueva ventana si se detectan cuadros
+            #if cant_cuadrados > 0:
+             #   cv2.imshow("Region de Interes", imagen_procesada)
 
-                # Envío de Datos
-                enviarDatos(cant_L+cant_cuadrados, cant_cuadrados, distancia_l, temp_Promedio, semilla, clave)
+        # Muestra el frame en la ventana
+        cv2.imshow('Webcam', frame)
 
-                # Muestra la región de interés procesada en el mismo frame
-                ajustado_frame[y_min:y_max, x_min:x_max] = imagen_procesada
+        # Esperar por 1 milisegundo para que la ventana se actualice
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
-                # Abre el ROI en una nueva ventana si se detectan cuadros
-                if cant_cuadrados > 0:
-                    cv2.imshow("Region de Interes", ajustado_frame)
+    # Libera la captura y cierra las ventanas
+    cap.release()
+    cv2.destroyAllWindows()
 
-                analizar = False
+def consola_y_entrada():
+    global capturando, enviar
+    mostrar_cartel2()
+    while True:
+        tecla = input("Ingrese su eleccion: ")
+        if tecla == 'e':
+            with lock:
+                enviar = not enviar
+        elif tecla == 'q':
+            capturando = False
+            break
 
-    # Manejo de teclas
-    key = cv2.waitKey(1) & 0xFF
-    if key == ord('q'):  # Rompe el bucle si se presiona la tecla 'q'
-        break
-    elif key == ord('s'):  # Rompe el bucle si se presiona la tecla 'q'
-        analizar = True
+# Crear hilos
+hilo_camara = threading.Thread(target=captura_camara)
+hilo_consola = threading.Thread(target=consola_y_entrada)
 
-# Libera la captura y cierra las ventanas
-cap.release()
-cv2.destroyAllWindows()
+# Inicializar hilos
+hilo_camara.start()
+hilo_consola.start()
+
+
+hilo_camara.join()
+time.sleep(1)
+hilo_consola.join()
+print("programa cerrado")

@@ -14,10 +14,13 @@ def funcion_B(coord_cuadrado, cord_L):
 
 def detectar_figuras(image):
     # Convertir la imagen a binaria aplicando un umbral
-    _, binary_image = cv2.threshold(image, 75, 255, cv2.THRESH_BINARY_INV)
+
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    _, binary_image = cv2.threshold(gray_image, 75, 255, cv2.THRESH_BINARY_INV)
 
     # Hacer una copia de la imagen para dibujar los contornos
-    img_salida = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)  # Convierte a BGR para dibujar en color
+    img_salida = image.copy()
 
     # Obtener dimensiones de la imagen
     height, width = image.shape[:2]
@@ -94,5 +97,8 @@ def detectar_figuras(image):
     # Llamar a funcion_B con las coordenadas de cuadrados y L
     posCuadroGeneral, dist_cuadrados, posLGeneral, dist_L = funcion_B(coord_Cuadrado, coord_L)
 
+    res = cv2.cvtColor(img_salida, cv2.COLOR_BGR2GRAY)
+    #cv2.imshow("resultado",res)
+
     # Devolver los resultados y la imagen procesada
-    return {"Cuadrados": cant_cuad, "L": cant_L, "DistanciaL": dist_L, "DistanciaC": dist_cuadrados}, cv2.cvtColor(img_salida, cv2.COLOR_BGR2GRAY)
+    return {"Cuadrados": cant_cuad, "L": cant_L, "DistanciaL": dist_L, "DistanciaC": dist_cuadrados}, res

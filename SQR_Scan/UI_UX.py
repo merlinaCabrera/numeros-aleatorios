@@ -1,0 +1,21 @@
+def mostrar_cartel1():
+    print("█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█")
+    print("█                                              █")
+    print("█ BIENVENIDO AL GENERADOR DE CLAVES ALEATORIAS █")
+    print("█                                              █")
+    print("█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█")
+    print("█        ↓↓↓ CONFIGURACION INICIAL ↓↓↓         █")
+    print("█                                              █")
+    print("█  Presione:                                   █")
+    print("█   '1': Cuenta con un monitor                 █")
+    print("█   '2': No Cuenta con un monitor              █")
+    print("█▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█")
+
+def mostrar_cartel2():
+    print("█▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀█")
+    print("█          ↓↓↓ COMANDOS POSIBLES ↓↓↓           █")
+    print("█                                              █")
+    print("█  Presione:                                   █")
+    print("█   e: Habilita/Deshabilita el envío de datos  █")
+    print("█   q: Cierra el Programa                      █")
+    print("█▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄█")
